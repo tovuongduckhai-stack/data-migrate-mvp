@@ -4,6 +4,17 @@
 // MVP thô: upload CSV -> map cột -> tải CSV mới
 // ============================================================
 
+// Ghi lại mỗi lượt vào web (chỉ tính GET, không tính lúc submit form)
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $visitDir = __DIR__ . '/data';
+    if (!is_dir($visitDir)) mkdir($visitDir, 0755, true);
+    $visitLine = json_encode([
+        'time' => date('Y-m-d H:i:s'),
+        'ip'   => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+    ], JSON_UNESCAPED_UNICODE) . "\n";
+    file_put_contents($visitDir . '/visits.log', $visitLine, FILE_APPEND | LOCK_EX);
+}
+
 function parse_csv_string($str) {
     $rows = [];
     $lines = explode("\n", str_replace("\r\n", "\n", trim($str)));
