@@ -45,6 +45,7 @@ function turso_execute($sql, $args = []) {
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         'Authorization: Bearer ' . $token,
         'Content-Type: application/json',
+        'Expect:',
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
