@@ -7,12 +7,20 @@
 
 define('SHEET_WEBHOOK_URL', 'https://script.google.com/macros/s/AKfycbwb9OJfKg4-63zb1MGr7-Q4VFZ4RxDeztYFa1TprFREmCVtR5IKot8QGOoYs_aoxEWt/exec');
 
+function get_real_ip() {
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $ips = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+        return trim($ips[0]);
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+}
+
 function log_to_sheet($type, $plan = '', $price = '') {
     $data = http_build_query([
         'type'  => $type,
         'plan'  => $plan,
         'price' => $price,
-        'ip'    => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+        'ip'    => get_real_ip(),
     ]);
     $opts = [
         'http' => [
