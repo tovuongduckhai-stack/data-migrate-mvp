@@ -1,17 +1,33 @@
 <?php
-require_once __DIR__ . '/db.php';
 // ============================================================
-// Data Migrate - chuyển đổi dữ liệu khách hàng giữa các nền tảng
-// MVP thô: upload CSV -> map cột -> tải CSV mới
+// Data Migrate - chuyen doi du lieu khach hang giua cac nen tang
+// MVP tho: upload CSV -> map cot -> tai CSV moi
+// Log ghi thang vao Google Sheet qua Apps Script Web App
 // ============================================================
 
-// Ghi lại mỗi lượt vào web (chỉ tính GET, không tính lúc submit form) - lưu vào Turso
+define('SHEET_WEBHOOK_URL', 'https://script.google.com/macros/s/AKfycbwb9OJfKg4-63zb1MGr7-Q4VFZ4RxDeztYFa1TprFREmCVtR5IKot8QGOoYs_aoxEWt/exec');
+
+function log_to_sheet($type, $plan = '', $price = '') {
+    $data = http_build_query([
+        'type'  => $type,
+        'plan'  => $plan,
+        'price' => $price,
+        'ip'    => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+    ]);
+    $opts = [
+        'http' => [
+            'method'  => 'POST',
+            'header'  => "Content-Type: application/x-www-form-urlencoded\r\n",
+            'content' => $data,
+            'timeout' => 5,
+        ],
+    ];
+    $context = stream_context_create($opts);
+    @file_get_contents(SHEET_WEBHOOK_URL, false, $context);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    turso_ensure_table();
-    turso_execute(
-        "INSERT INTO events (type, ip, time) VALUES (?, ?, ?)",
-        ['visit', $_SERVER['REMOTE_ADDR'] ?? 'unknown', date('Y-m-d H:i:s')]
-    );
+    log_to_sheet('visit');
 }
 
 function parse_csv_string($str) {
@@ -26,16 +42,13 @@ function parse_csv_string($str) {
 
 $step = $_POST['step'] ?? 'upload';
 
-// ---------- STEP 2: xử lý mapping + xuất CSV ----------
 if ($step === 'export' && isset($_POST['raw_csv'])) {
     $rawCsv = $_POST['raw_csv'];
     $rows = parse_csv_string($rawCsv);
     $header = array_shift($rows);
 
-    $mapping = $_POST['map'] ?? []; // vị trí cột cũ (index) => tên cột mới
     $targetFields = $_POST['target_field'] ?? [];
 
-    // Xây header mới theo đúng thứ tự người dùng đặt tên (bỏ qua cột nào để trống)
     $newHeader = [];
     $colIndexes = [];
     foreach ($targetFields as $idx => $name) {
@@ -48,7 +61,6 @@ if ($step === 'export' && isset($_POST['raw_csv'])) {
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="converted-data.csv"');
     $out = fopen('php://output', 'w');
-    // BOM để Excel đọc đúng tiếng Việt
     fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
     fputcsv($out, $newHeader);
     foreach ($rows as $row) {
@@ -62,7 +74,6 @@ if ($step === 'export' && isset($_POST['raw_csv'])) {
     exit;
 }
 
-// ---------- STEP 1: đã upload, hiển thị bảng mapping ----------
 $previewHeader = [];
 $previewRows = [];
 $rawCsv = '';
@@ -70,14 +81,13 @@ $error = '';
 
 if ($step === 'mapping' && isset($_FILES['csv_file'])) {
     $content = file_get_contents($_FILES['csv_file']['tmp_name']);
-    // bỏ BOM nếu có
     $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
     $rows = parse_csv_string($content);
     if (count($rows) < 1) {
         $error = 'The CSV file is empty or could not be read.';
     } else {
         $previewHeader = $rows[0];
-        $previewRows = array_slice($rows, 1, 5); // xem trước 5 dòng
+        $previewRows = array_slice($rows, 1, 5);
         $rawCsv = $content;
     }
 }
